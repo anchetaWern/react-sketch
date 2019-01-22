@@ -57,6 +57,8 @@ class SketchField extends PureComponent {
     className: PropTypes.string,
     // Style options to pass to container div of canvas
     style: PropTypes.object,
+
+    onUpdate: PropTypes.func,
   };
 
   static defaultProps = {
@@ -151,6 +153,8 @@ class SketchField extends PureComponent {
     let state = JSON.stringify(objState);
     // object, previous state, current state
     this._history.keep([obj, state, state])
+
+    this.props.onUpdate();
   };
 
   /**
@@ -183,6 +187,8 @@ class SketchField extends PureComponent {
     obj.__originalState = objState;
     let currState = JSON.stringify(objState);
     this._history.keep([obj, prevState, currState]);
+
+    this.props.onUpdate();
   };
 
   /**
@@ -195,6 +201,8 @@ class SketchField extends PureComponent {
       return
     }
     obj.__version = 0;
+
+    this.props.onUpdate();
   };
 
   /**
