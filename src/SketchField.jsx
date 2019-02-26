@@ -57,6 +57,12 @@ class SketchField extends PureComponent {
     className: PropTypes.string,
     // Style options to pass to container div of canvas
     style: PropTypes.object,
+
+    onUpdate: PropTypes.func,
+
+    username: PropTypes.string,
+
+    shortid: PropTypes.func // add this
   };
 
   static defaultProps = {
@@ -139,6 +145,7 @@ class SketchField extends PureComponent {
    * Action when an object is added to the canvas
    */
   _onObjectAdded = (e) => {
+   
     if (!this.state.action) {
       this.setState({ action: true });
       return
@@ -151,28 +158,40 @@ class SketchField extends PureComponent {
     let state = JSON.stringify(objState);
     // object, previous state, current state
     this._history.keep([obj, state, state])
+    
+    if(!obj.sender){ 
+      const id = this.props.shortid.generate(); 
+      Object.assign(obj, { id });
+      this.props.onUpdate(JSON.stringify(obj), 'add', this.props.username, id); 
+    }
   };
 
   /**
    * Action when an object is moving around inside the canvas
    */
   _onObjectMoving = (e) => {
-
+   
   };
 
   /**
    * Action when an object is scaling inside the canvas
    */
   _onObjectScaling = (e) => {
-
+    
   };
 
   /**
    * Action when an object is rotating inside the canvas
    */
   _onObjectRotating = (e) => {
-
+    
   };
+  
+  getSelected = () => {
+    let canvas = this._fc;
+    let activeObj = canvas.getActiveObject();
+    return activeObj;
+  }
 
   _onObjectModified = (e) => {
     let obj = e.target;
@@ -183,6 +202,11 @@ class SketchField extends PureComponent {
     obj.__originalState = objState;
     let currState = JSON.stringify(objState);
     this._history.keep([obj, prevState, currState]);
+    
+    if (!obj.sender) {
+      let strObj = JSON.stringify(obj);
+      this.props.onUpdate(strObj, 'update', this.props.username, obj.id);
+    }
   };
 
   /**
@@ -480,8 +504,18 @@ class SketchField extends PureComponent {
       });
       canvas.discardActiveObject();
       canvas.requestRenderAll();
+      
     }
   };
+
+  setSelected = (id) => {
+    let canvas = this._fc;
+    var objToSelect = canvas.getObjects().find((o) => {
+      return id == o.id;
+    });
+    canvas.setActiveObject(objToSelect);
+    canvas.requestRenderAll();
+  }
 
   copy = () => {
     let canvas = this._fc;
@@ -546,6 +580,50 @@ class SketchField extends PureComponent {
     img.src = dataUrl
   };
 
+  _capsFirstLetter = (str) => {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  addObject = (obj) => {
+
+    let canvas = this._fc;
+    let shapeData = JSON.parse(obj);
+    
+    let shape = null;
+    const type = this._capsFirstLetter(shapeData.type);
+    if (type == 'Path') {
+      let string_path = '';
+      shapeData.path.forEach((x) => {
+        string_path += x.join(' ');
+      });
+    
+      shape = new fabric.Path(string_path);
+      delete shapeData.path;
+      shape.set(shapeData);
+    } else if (type == 'I-text') {
+      shape = new fabric.Text(shapeData.text);
+      delete shapeData.text;
+      shape.set(shapeData);
+    } else {
+      shape = new fabric[type](shapeData);
+    }
+     
+    canvas.add(shape);
+  }
+
+  modifyObject = (obj) => {
+    
+    let objData = JSON.parse(obj);
+    let canvas = this._fc;
+
+    var objToModify = canvas.getObjects().find((o) => {
+      return objData.id == o.id;
+    });
+   
+    objToModify.setCoords(); 
+    canvas.requestRenderAll();
+  }
+
   addText = (text, options = {}) => {
     let canvas = this._fc;
     let iText = new fabric.IText(text, options);
@@ -555,6 +633,7 @@ class SketchField extends PureComponent {
     };
     Object.assign(options, opts);
     iText.set({
+      'id': options.id, // add this
       'left': options.left,
       'top': options.top
     });
@@ -565,20 +644,21 @@ class SketchField extends PureComponent {
   componentDidMount = () => {
     let {
       tool,
-      value,
+      value, 
       undoSteps,
       defaultValue,
-      backgroundColor
+      backgroundColor,
+      username
     } = this.props;
 
-    let canvas = this._fc = new fabric.Canvas(this._canvas/*, {
-         preserveObjectStacking: false,
-         renderOnAddRemove: false,
-         skipTargetFind: true
-         }*/);
+    let canvas = this._fc = new fabric.Canvas(this._canvas, {
+      preserveObjectStacking: false,
+      renderOnAddRemove: false,
+      skipTargetFind: true
+    });
 
     this._initTools(canvas);
-
+    
     // set initial backgroundColor
     this._backgroundColor(backgroundColor)
 
@@ -603,6 +683,7 @@ class SketchField extends PureComponent {
     canvas.on('object:moving', this._onObjectMoving);
     canvas.on('object:scaling', this._onObjectScaling);
     canvas.on('object:rotating', this._onObjectRotating);
+    
     // IText Events fired on Adding Text
     // canvas.on("text:event:changed", console.log)
     // canvas.on("text:selection:changed", console.log)
